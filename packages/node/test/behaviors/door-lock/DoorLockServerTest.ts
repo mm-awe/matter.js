@@ -6,9 +6,34 @@
 
 import { DoorLockServer } from "#behaviors/door-lock";
 import { DoorLockDevice } from "#devices/door-lock";
-import { FabricIndex, Status } from "@matter/types";
+import {
+    ClusterId,
+    CommandId,
+    EndpointNumber,
+    FabricIndex,
+    Status,
+    TlvByteString,
+    TlvField,
+    TlvNullable,
+    TlvObject,
+    TlvUInt16,
+    TlvUInt8,
+} from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { MockServerNode } from "../../node/mock-server-node.js";
+import { interaction } from "../../node/node-helpers.js";
+
+const TlvSetCredentialRequest = TlvObject({
+    operationType: TlvField(0, TlvUInt8),
+    credential: TlvField(
+        1,
+        TlvObject({ credentialType: TlvField(0, TlvUInt8), credentialIndex: TlvField(1, TlvUInt16) }),
+    ),
+    credentialData: TlvField(2, TlvByteString),
+    userIndex: TlvField(3, TlvNullable(TlvUInt16)),
+    userStatus: TlvField(4, TlvNullable(TlvUInt8)),
+    userType: TlvField(5, TlvNullable(TlvUInt8)),
+});
 
 const TestDoorLockDevice = DoorLockDevice.with(DoorLockServer.with("User", "PinCredential"));
 
@@ -50,6 +75,45 @@ function pin(digits: string) {
 }
 
 describe("DoorLockServer", () => {
+    // SetCredential's OperationType admits only the values "add, modify" names, and the cluster answers a payload it
+    // cannot validate with INVALID_COMMAND
+    it("refuses SetCredential naming an OperationType its constraint omits", async () => {
+        await using lock = await createLock();
+
+        async function setCredentialOverTheWire(operationType: DoorLock.DataOperationType) {
+            let status: number | undefined;
+
+            await interaction.invoke(
+                lock.node,
+                await lock.node.addFabric(),
+                {
+                    commandPath: {
+                        endpointId: EndpointNumber(1),
+                        clusterId: ClusterId(DoorLock.Complete.id),
+                        commandId: CommandId(0x22),
+                    },
+                    commandFields: TlvSetCredentialRequest.encodeTlv({
+                        operationType,
+                        credential: { credentialType: DoorLock.CredentialType.Pin, credentialIndex: 1 },
+                        credentialData: pin("1234"),
+                        userIndex: 1,
+                        userStatus: null,
+                        userType: null,
+                    }),
+                },
+                response => {
+                    status = response.status?.status?.status;
+                },
+                { timed: true },
+            );
+
+            return status;
+        }
+
+        expect(await setCredentialOverTheWire(DoorLock.DataOperationType.Clear)).equals(Status.InvalidCommand);
+        expect(await setCredentialOverTheWire(DoorLock.DataOperationType.Add)).equals(undefined);
+    });
+
     it("reports DUPLICATE when CredentialData duplicates another credential of the same CredentialType", async () => {
         await using lock = await createLock();
 
