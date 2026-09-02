@@ -96,6 +96,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.model.conformance.validateComputation(this, this.model.owner(ClusterModel)?.definedFeatures);
 
         this.#validateAspect("constraint");
+        this.model.constraint.validateReferences(this, path => this.#resolveConstraintReference(path));
         this.#validateAspect("access");
         this.#validateAspect("quality");
 
@@ -298,6 +299,28 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         // Field reference — camelize each segment to normalize case (e.g. "OperationalStateID" → "OperationalStateId")
         const path = name.map(s => camelize(s, true));
         return this.model.parent?.resolve(path, this.resolveOptions());
+    }
+
+    /**
+     * Resolve a name a constraint states.
+     *
+     * An enumerated type states a bound as the names of its own values, so an unqualified name resolves against the
+     * type before the surrounding scope.  A bitmap names a flag whose position it states in a constraint rather than as a member id,
+     * which {@link EncodedConstraint} does not turn into a value, so such a name is left to report as unresolved.
+     *
+     * @see {@link MatterSpecification.v16.Core} § 7.18.3
+     */
+    #resolveConstraintReference(path: string[]) {
+        if (path.length === 1 && this.model.effectiveMetatype === Metatype.enum) {
+            const propertyName = camelize(path[0]);
+            for (const member of this.model.members) {
+                if (member.propertyName === propertyName) {
+                    return member;
+                }
+            }
+        }
+
+        return this.resolveReference(path);
     }
 
     /**
