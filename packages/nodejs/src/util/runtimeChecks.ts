@@ -14,7 +14,7 @@ export function isBunjs() {
 }
 
 /**
- * Check if runtime is Deno 
+ * Check if runtime is Deno
  */
 export function isDeno() {
     return process.versions.deno != null;
