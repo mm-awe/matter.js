@@ -14,6 +14,13 @@ export function isBunjs() {
 }
 
 /**
+ * Check if runtime is Deno 
+ */
+export function isDeno() {
+    return process.versions.deno != null;
+}
+
+/**
  * Check Node.js's runtime supports sqlite.
  */
 export function supportsSqlite() {

@@ -33,7 +33,7 @@ import {
     type DataNamespace,
 } from "@matter/general";
 
-import { isBunjs } from "#util/runtimeChecks.js";
+import { isBunjs, isDeno } from "#util/runtimeChecks.js";
 
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -158,7 +158,7 @@ function configureCrypto(env: Environment) {
     Boot.init(() => {
         if (env.vars.boolean("nodejs.crypto")) {
             let crypto: Crypto;
-            if (!isBunjs()) {
+            if (!isBunjs() && !isDeno()) {
                 // Platform implemented crypto
                 crypto = new NodeJsCrypto();
             } else {
